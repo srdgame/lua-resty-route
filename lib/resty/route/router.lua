@@ -45,6 +45,8 @@ local function go(self, i)
     end
 end
 local function finish(self, status, func, ...)
+	if ngx.ctx._finish then return end
+	ngx.ctx._finish = true
     if status then
         local t = self[2]
         if next(t) then
@@ -105,7 +107,7 @@ function router:exec(uri, args)
     status = status or OK
     return finish(self, status, exec, uri, args)
 end
-function router:done()
+function router:done(...)
     return self:exit(HTTP_200)
 end
 function router:abort()
@@ -125,13 +127,16 @@ function router:to(location, method)
         go(self, 5)
         self[5] = nil
     end
+	if ngx.ctx._finish then return end
     go(self, 4)
+	if ngx.ctx._finish then return end
     local named = self[3][location]
     if named then
         execute(self, 3, type(named) == "function" and create(named) or create(function(...) named(...) end))
     else
         go(self, 3)
     end
+	if ngx.ctx._finish then return end
     self:fail(HTTP_404)
 end
 function router:render(content, context)
