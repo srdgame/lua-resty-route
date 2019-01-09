@@ -123,7 +123,7 @@ OpenResty has support for PCRE compatible regualar expressions, and
 this matcher in particular, uses `ngx.re.match` function:
 
 ```lua
-route "~^/files/(\\w+)[.](\\w+)$" {
+route [[~^/files/(\w+)[.](\w+)$]] {
     get = function(self, file, ext) end
 }
 ```
@@ -134,7 +134,7 @@ and the function will be called with the captures.
 For Regex matcher we also have case-insensitive version:
 
 ```lua
-route "~*^/files/(\\w+)[.](\\w+)$" {
+route [[~*^/files/(\w+)[.](\w+)$]] {
     get = function(self, file, ext) end
 }
 ```
@@ -469,10 +469,6 @@ There are or will be other uses to named routers as well. On todo
 list there are things like reverse routing and route forwarding to
 a named route.
 
-### Dispatching
-
-### Bootstrapping
-
 ## Middleware
 
 Middleware in `lua-resty-route` can be defined on either on per request
@@ -601,6 +597,102 @@ Only one of these is called per event.
 It is possible that we will add other handlers in a future where you could
 hook on.
 
+### Router API
+
+You may have seen in previous examples functions get as a first
+parameter a `self`. The `self` represents a `router` that contains
+many nice functions documented below.
+
+While the above so called `Route API` is for defining the routes,
+the `Router API` is actually about running the routes.
+
+#### router.context
+
+This is really powerful concept here to share data between
+different routes and functions. Many middleware will be
+inserted to context.
+
+E.g. a redis middleware could add `redis` object to `context`
+so that you could just:
+
+```lua
+local ok, err = self.redis:set("cat", "tommy")
+```
+
+Opening and closing the Redis connection is something that the
+middleware does automatically before scenes. It means that you
+don't need to initiate or close the connections to Redis server,
+but this small `framework` takes care of this. As you see, this
+`self` parameter is automatically passed around different layers
+of this framework, and this context makes it easy to pass data
+between them.
+
+#### router.yield()
+
+Is similar to `coroutine.yield()` but as you have seen above
+in middlewares section, it is quite nice to just call `self.yield()`
+instead to split middleware to before and after `filters`,
+it also makes us possible to add e.g. debugging / profiling code
+in a future. `self.yield()` is more self explaining what happens
+and makes code easier to read (may be subjective opinion).
+
+#### router:redirect(uri, code)
+
+Similar to `ngx.redirect` but runs redirect event handler and
+after filters before actually calling `ngx.redirect` with `code`
+(or `ngx.HTTP_MOVED_TEMPORARILY` if not specified) and ending
+the handler.
+
+#### router:exit(uri, code)
+
+Similar to `ngx.exit` but runs event handler and after filters
+before actually calling `ngx.exit` with `code` (or `ngx.OK`
+if not specified) and ending the handler.
+
+#### router:exec(uri, args)
+
+Similar to `ngx.exec` but runs event handler and after filters
+before actually calling `ngx.exec` and ending the handler. 
+
+#### router:done()
+
+Similar to `ngx.exit` with `ngx.HTTP_OK` but runs event handler
+and after filters before actually calling `ngx.exit` and ending
+the handler.
+
+#### router:abort()
+
+This is reserved for `ngx.on_abort` usage (NYI). Right now only
+calls `ngx.exit(499)` after running event handler and after
+filters.
+
+#### router:fail(error, code)
+
+If `error` is a string, then logs it to error log. Otherwise it
+is similar to `ngx.exit(code)` (by default the `code` is
+`ngx.HTTP_INTERNAL_SERVER_ERROR`) but runs event handler and
+after filters before actually calling `ngx.exit`and ending
+the handler.
+
+#### router:to(location, method)
+
+Allows you to execute another route (defined by `route`).
+
+#### router:render(content, context)
+
+Writes content to output stream. If there is a `context.template`
+then it will call `context.template.render(content, context or self.context)`.
+
+#### router:json(data)
+
+Encodes data as JSON, adds `application/json` content-type
+header and outputs the JSON.
+
+#### router:*
+
+A lot more can be added here to make writing code less repetive,
+but a lot can be done with injecting into `self.context` as well.
+
 ## Roadmap
 
 This is a small collection of ideas that may or may not be implemented as
@@ -614,6 +706,10 @@ a part of `lua-resty-route`.
 * Add an automatic route cleaning and redirecting (possibly configurable) (clean function is already written)
 * Add an automatic slash handling and redirecting (possibly configurable)
 * Add a more automated way to define redirects
+* Add a support for route caching
+* Add a support to route by host
+* Add a support to route by headers
+* Add a support for Nginx phases
 * Add a support for easy way to define Web Hooks routes
 * Add a support for easy way to define Server Sent Events routes
 * Add a support for "provides", e.g. renderers (?)
