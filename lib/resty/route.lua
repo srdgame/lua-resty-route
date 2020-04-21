@@ -90,8 +90,8 @@ local handlers = {
     link        = http,
     unlink      = http,
     -- Special
-    sse         = require "resty.route.handlers.sse",
-    websocket   = require "resty.route.handlers.websocket"
+    --sse         = require "resty.route.handlers.sse",
+    --websocket   = require "resty.route.handlers.websocket"
 }
 local function location(l)
     return l or var.uri
